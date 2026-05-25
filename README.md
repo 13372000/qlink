@@ -131,7 +131,7 @@ This integration is optional. Q-Link itself does not generate speech and does no
 %USERPROFILE%\.qdex\broadcast.jsonl
 ```
 
-When a prompt came from Telegram, Q-Link waits for the next QDex audio broadcast and sends that audio to the same Telegram chat.
+When a prompt came from Telegram, Q-Link relays matching QDex audio broadcasts back to the same Telegram chat. This supports Codex responses that arrive in multiple spoken parts. The relay closes after a configurable idle period or the maximum timeout, whichever comes first.
 
 Useful settings:
 
@@ -139,6 +139,7 @@ Useful settings:
 QLINK_QDEX_ENABLED=1
 QLINK_QDEX_SEND_AUDIO_TO_TELEGRAM=1
 QLINK_QDEX_BROADCAST_POLL_MS=500
+QLINK_QDEX_RELAY_IDLE_MS=120000
 QLINK_QDEX_RELAY_TIMEOUT_MS=900000
 ```
 

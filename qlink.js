@@ -379,6 +379,8 @@ function buildHelpText() {
 }
 
 function buildStatusText() {
+  pruneExpiredQdexAudioRelays();
+
   return [
     "Q-Link status",
     `pid=${process.pid}`,
@@ -388,6 +390,7 @@ function buildStatusText() {
     `submitKeys=${config.submitKeys}`,
     `autoSubmit=${config.autoSubmit}`,
     `qdexAudio=${config.qdexEnabled ? config.qdexBroadcastPath : "off"}`,
+    `qdexRelayIdleMs=${config.qdexRelayIdleMs}`,
     `pendingQdexAudio=${pendingQdexAudioRelays.length}`,
     activeInjection ? "activeInjection=yes" : "activeInjection=no"
   ].join("\n");
@@ -543,6 +546,7 @@ function registerPendingQdexAudioRelay({ chatId, replyToMessageId, inputKind, pr
   }
 
   const nowMs = Date.now();
+  pruneExpiredQdexAudioRelays(nowMs);
   pendingQdexAudioRelays.push({
     id: crypto.randomUUID(),
     chatId: String(chatId),
@@ -550,6 +554,8 @@ function registerPendingQdexAudioRelay({ chatId, replyToMessageId, inputKind, pr
     inputKind: inputKind || "text",
     promptPreview: String(prompt || "").trim().slice(0, 160),
     createdAtMs: nowMs,
+    lastMatchedAtMs: null,
+    matchCount: 0,
     expiresAtMs: nowMs + config.qdexRelayTimeoutMs
   });
 
@@ -633,19 +639,10 @@ async function handleQdexBroadcastLine(baseUrl, line) {
     return;
   }
 
-  const pendingRelay = takePendingQdexAudioRelay(entry);
-  if (!pendingRelay) {
-    return;
-  }
-
   const clip = entry.clip || {};
-  const playbackId = clip.playbackId || entry.id || crypto.randomUUID();
-  if (sentQdexAudioIds.has(playbackId)) {
+  const playbackId = String(clip.playbackId || entry.id || "");
+  if (playbackId && sentQdexAudioIds.has(playbackId)) {
     return;
-  }
-  sentQdexAudioIds.add(playbackId);
-  if (sentQdexAudioIds.size > 100) {
-    sentQdexAudioIds.delete(sentQdexAudioIds.values().next().value);
   }
 
   const audio = decodeDataAudioUrl(clip.audioUrl);
@@ -654,35 +651,66 @@ async function handleQdexBroadcastLine(baseUrl, line) {
     return;
   }
 
+  const pendingRelay = matchPendingQdexAudioRelay(entry);
+  if (!pendingRelay) {
+    return;
+  }
+
+  rememberSentQdexAudioId(playbackId);
+
   await sendTelegramAudio(baseUrl, pendingRelay.chatId, audio, {
     replyToMessageId: pendingRelay.replyToMessageId || null,
     caption: config.qdexAudioCaption
   });
 }
 
-function takePendingQdexAudioRelay(entry) {
+function matchPendingQdexAudioRelay(entry) {
   const nowMs = Date.now();
+  pruneExpiredQdexAudioRelays(nowMs);
+
+  const entryMs = Date.parse(entry?.createdAt || "");
   for (let index = pendingQdexAudioRelays.length - 1; index >= 0; index -= 1) {
-    if (pendingQdexAudioRelays[index].expiresAtMs <= nowMs) {
+    const pending = pendingQdexAudioRelays[index];
+    if (!Number.isFinite(entryMs)) {
+      pending.matchCount += 1;
+      pending.lastMatchedAtMs = nowMs;
+      console.log(`QDex audio relay matched chat=${pending.chatId} clip=${pending.matchCount}`);
+      return pending;
+    }
+
+    if (entryMs >= pending.createdAtMs - 2000) {
+      pending.matchCount += 1;
+      pending.lastMatchedAtMs = nowMs;
+      console.log(`QDex audio relay matched chat=${pending.chatId} clip=${pending.matchCount}`);
+      return pending;
+    }
+  }
+
+  return null;
+}
+
+function pruneExpiredQdexAudioRelays(nowMs = Date.now()) {
+  for (let index = pendingQdexAudioRelays.length - 1; index >= 0; index -= 1) {
+    const pending = pendingQdexAudioRelays[index];
+    const idleExpired = pending.matchCount > 0 &&
+      pending.lastMatchedAtMs &&
+      pending.lastMatchedAtMs + config.qdexRelayIdleMs <= nowMs;
+
+    if (pending.expiresAtMs <= nowMs || idleExpired) {
       pendingQdexAudioRelays.splice(index, 1);
     }
   }
+}
 
-  const entryMs = Date.parse(entry?.createdAt || "");
-  const index = pendingQdexAudioRelays.findIndex((pending) => {
-    if (!Number.isFinite(entryMs)) {
-      return true;
-    }
-    return entryMs >= pending.createdAtMs - 2000;
-  });
-
-  if (index === -1) {
-    return null;
+function rememberSentQdexAudioId(id) {
+  if (!id) {
+    return;
   }
 
-  const [pending] = pendingQdexAudioRelays.splice(index, 1);
-  console.log(`QDex audio relay matched chat=${pending.chatId}`);
-  return pending;
+  sentQdexAudioIds.add(id);
+  if (sentQdexAudioIds.size > 100) {
+    sentQdexAudioIds.delete(sentQdexAudioIds.values().next().value);
+  }
 }
 
 function decodeDataAudioUrl(value) {
@@ -744,6 +772,7 @@ function buildConfig() {
       env("QLINK_QDEX_BROADCAST_PATH", path.join(qdexBridgeDir, "broadcast.jsonl"))
     ),
     qdexBroadcastPollMs: parsePositiveInteger(env("QLINK_QDEX_BROADCAST_POLL_MS", "500"), 500),
+    qdexRelayIdleMs: parsePositiveInteger(env("QLINK_QDEX_RELAY_IDLE_MS", "120000"), 120000),
     qdexRelayTimeoutMs: parsePositiveInteger(env("QLINK_QDEX_RELAY_TIMEOUT_MS", "900000"), 900000),
     qdexAudioCaption: env("QLINK_QDEX_AUDIO_CAPTION", ""),
     dataDir
