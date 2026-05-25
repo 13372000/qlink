@@ -12,10 +12,11 @@ $script:DataDir = Join-Path $script:AppDir "data"
 $script:LogDir = Join-Path $script:AppDir "logs"
 $script:PidFile = Join-Path $script:DataDir "qlink.pid"
 $script:TrayPidFile = Join-Path $script:DataDir "qlink-tray.pid"
-$script:QLinkBat = Join-Path $script:AppDir "qlink.bat"
 $script:OutLog = Join-Path $script:LogDir "qlink.out.log"
 $script:ErrLog = Join-Path $script:LogDir "qlink.err.log"
 $script:IconPath = Join-Path $script:AppDir "assets\qlink.ico"
+$script:LastStartedPid = $null
+$script:ActionInProgress = $false
 
 New-Item -ItemType Directory -Force -Path $script:DataDir, $script:LogDir | Out-Null
 [System.IO.File]::WriteAllText($script:TrayPidFile, [string]$PID)
@@ -30,6 +31,10 @@ function Get-QLinkIcon {
 
 function Get-QLinkProcess {
   if (-not (Test-Path $script:PidFile)) {
+    if ($script:LastStartedPid) {
+      return Get-Process -Id $script:LastStartedPid -ErrorAction SilentlyContinue
+    }
+
     return $null
   }
 
@@ -39,15 +44,6 @@ function Get-QLinkProcess {
   } catch {
     return $null
   }
-}
-
-function Invoke-QLinkCommand([string]$Action) {
-  if (-not (Test-Path $script:QLinkBat)) {
-    throw "Missing qlink.bat at $script:QLinkBat"
-  }
-
-  $output = & $script:QLinkBat $Action 2>&1 | Out-String
-  return $output.Trim()
 }
 
 function Show-Balloon([string]$Title, [string]$Text, [System.Windows.Forms.ToolTipIcon]$Icon = [System.Windows.Forms.ToolTipIcon]::Info) {
@@ -76,24 +72,70 @@ function Update-TrayState {
   }
 }
 
+function Set-TrayBusy([string]$Status) {
+  $script:NotifyIcon.Text = "Q-Link $Status"
+  $script:StatusItem.Text = "Status: $Status"
+  $script:StartItem.Enabled = $false
+  $script:StopItem.Enabled = $false
+  $script:RestartItem.Enabled = $false
+}
+
+function Invoke-TrayAction([scriptblock]$Action) {
+  if ($script:ActionInProgress) {
+    Show-Balloon "Q-Link" "Another tray action is already running."
+    return
+  }
+
+  $script:ActionInProgress = $true
+  try {
+    & $Action
+  } finally {
+    $script:ActionInProgress = $false
+    Update-TrayState
+  }
+}
+
 function Start-QLink {
   try {
-    $output = Invoke-QLinkCommand "start"
-    Update-TrayState
-    Show-Balloon "Q-Link" ($output -replace "\r?\n", " ")
+    $process = Get-QLinkProcess
+    if ($process) {
+      Show-Balloon "Q-Link" "Q-Link already running. PID=$($process.Id)"
+      return
+    }
+
+    Set-TrayBusy "starting"
+    New-Item -ItemType Directory -Force -Path $script:DataDir, $script:LogDir | Out-Null
+    $process = Start-Process `
+      -WindowStyle Hidden `
+      -FilePath "node" `
+      -ArgumentList @("qlink.js") `
+      -WorkingDirectory $script:AppDir `
+      -RedirectStandardOutput $script:OutLog `
+      -RedirectStandardError $script:ErrLog `
+      -PassThru
+    $script:LastStartedPid = $process.Id
+    Show-Balloon "Q-Link" "Q-Link starting. PID=$($process.Id)"
   } catch {
-    Update-TrayState
     Show-Balloon "Q-Link error" $_.Exception.Message ([System.Windows.Forms.ToolTipIcon]::Error)
   }
 }
 
 function Stop-QLink {
   try {
-    $output = Invoke-QLinkCommand "stop"
-    Update-TrayState
-    Show-Balloon "Q-Link" ($output -replace "\r?\n", " ")
+    $process = Get-QLinkProcess
+    if (-not $process) {
+      Remove-Item -LiteralPath $script:PidFile -Force -ErrorAction SilentlyContinue
+      $script:LastStartedPid = $null
+      Show-Balloon "Q-Link" "Q-Link is not running."
+      return
+    }
+
+    Set-TrayBusy "stopping"
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $script:PidFile -Force -ErrorAction SilentlyContinue
+    $script:LastStartedPid = $null
+    Show-Balloon "Q-Link" "Q-Link stopped. PID=$($process.Id)"
   } catch {
-    Update-TrayState
     Show-Balloon "Q-Link error" $_.Exception.Message ([System.Windows.Forms.ToolTipIcon]::Error)
   }
 }
@@ -148,9 +190,9 @@ $readmeItem = $menu.Items.Add("Open README")
 $menu.Items.Add("-") | Out-Null
 $exitItem = $menu.Items.Add("Exit")
 
-$script:StartItem.Add_Click({ Start-QLink })
-$script:RestartItem.Add_Click({ Restart-QLink })
-$script:StopItem.Add_Click({ Stop-QLink })
+$script:StartItem.Add_Click({ Invoke-TrayAction { Start-QLink } })
+$script:RestartItem.Add_Click({ Invoke-TrayAction { Restart-QLink } })
+$script:StopItem.Add_Click({ Invoke-TrayAction { Stop-QLink } })
 $logsItem.Add_Click({ Open-Logs })
 $readmeItem.Add_Click({ Open-Readme })
 $exitItem.Add_Click({ Exit-Tray })
@@ -158,10 +200,10 @@ $script:NotifyIcon.ContextMenuStrip = $menu
 $script:NotifyIcon.Add_DoubleClick({ Open-Logs })
 
 $script:Timer = New-Object System.Windows.Forms.Timer
-$script:Timer.Interval = 5000
+$script:Timer.Interval = 2000
 $script:Timer.Add_Tick({ Update-TrayState })
 $script:Timer.Start()
 
-Start-QLink
+Invoke-TrayAction { Start-QLink }
 Update-TrayState
 [System.Windows.Forms.Application]::Run()
