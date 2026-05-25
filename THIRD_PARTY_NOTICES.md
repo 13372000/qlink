@@ -12,4 +12,4 @@ Runtime integrations used by Q-Link:
 - ffmpeg, optional for voice input: converts Telegram audio before transcription.
 - whisper.cpp `whisper-cli`, optional for voice input: performs local speech-to-text.
 
-Q-Link expects optional ffmpeg/whisper binaries to be provided locally, commonly by the adjacent `AGENT_CODEX` setup. They are not bundled here.
+Q-Link expects optional ffmpeg/whisper binaries to be provided locally. They are not bundled here.

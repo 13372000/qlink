@@ -7,11 +7,10 @@ import { randomUUID } from "node:crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const AGENT_CODEX_DIR = path.resolve(__dirname, "..", "AGENT_CODEX");
 
-const DEFAULT_WHISPER_CLI = path.join(AGENT_CODEX_DIR, "whisper", "Release", "whisper-cli.exe");
-const DEFAULT_WHISPER_MODEL = path.join(AGENT_CODEX_DIR, "whisper", "models", "ggml-base.bin");
-const DEFAULT_FFMPEG_PATH = path.join(AGENT_CODEX_DIR, "tools", "ffmpeg", "bin", "ffmpeg.exe");
+const DEFAULT_WHISPER_CLI = path.join(__dirname, "tools", "whisper", "whisper-cli.exe");
+const DEFAULT_WHISPER_MODEL = path.join(__dirname, "tools", "whisper", "models", "ggml-base.bin");
+const DEFAULT_FFMPEG_PATH = path.join(__dirname, "tools", "ffmpeg", "bin", "ffmpeg.exe");
 
 export async function transcribeAudioBuffer(audioBuffer, options = {}) {
   const id = randomUUID();

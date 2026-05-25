@@ -10,8 +10,6 @@ import { transcribeAudioBuffer } from "./whisper-client.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, "..");
-const FALLBACK_ENV_PATH = path.join(ROOT_DIR, "AGENT_CODEX", ".env");
 
 const TELEGRAM_API_BASE = "https://api.telegram.org";
 const TELEGRAM_MESSAGE_LIMIT = 3900;
@@ -33,7 +31,6 @@ const ACK_MESSAGES = [
 ];
 
 loadEnvFile(path.join(__dirname, ".env"));
-loadEnvFile(FALLBACK_ENV_PATH, { onlyMissing: true });
 
 const config = buildConfig();
 const pidPath = path.join(config.dataDir, "qlink.pid");
@@ -56,7 +53,7 @@ main().catch((error) => {
 
 async function main() {
   if (!config.telegramToken) {
-    throw new Error("TELEGRAM_BOT_TOKEN absent. Mets-le dans Q-Link/.env ou laisse Q-Link lire AGENT_CODEX/.env.");
+    throw new Error("TELEGRAM_BOT_TOKEN is missing. Set it in Q-Link/.env.");
   }
 
   await fsp.mkdir(config.dataDir, { recursive: true });

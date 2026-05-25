@@ -4,29 +4,40 @@
 
 # Q-Link
 
-Q-Link is a small standalone bridge:
+Q-Link is a Windows tray bridge that receives Telegram messages and submits them to Codex Desktop through local UI automation.
 
 ```text
-Telegram -> local transcription if needed -> Codex Desktop clipboard paste
+Telegram -> optional local speech-to-text -> Codex Desktop
 ```
 
-It is intentionally different from QAgent. QAgent talks to `codex app-server`; Q-Link tries to inject into the visible Codex Desktop app by focusing the window, pasting the prompt, and pressing Enter.
+It is designed for local desktop use. Codex Desktop must be open and accessible on the Windows session where Q-Link is running.
 
-## Start
+## Features
+
+- Telegram text prompt forwarding
+- Telegram voice prompt transcription with local Whisper
+- Codex Desktop foreground/focus handling
+- Clipboard paste and configurable submit shortcut
+- Optional Windows tray launcher
+- Optional QDex audio relay back to Telegram
+
+## Quick Start
 
 ```powershell
-cd C:\Users\vcplo\Documents\AGENT\Q-Link
+cd C:\path\to\Q-Link
+Copy-Item .env.example .env
+notepad .env
 .\qlink-tray.bat start
 ```
 
-Q-Link reads:
+At minimum, configure:
 
-1. `Q-Link/.env`
-2. `../AGENT_CODEX/.env` for missing variables
+```env
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_CHAT_IDS=
+```
 
-If `AGENT_CODEX/.env` already contains `TELEGRAM_BOT_TOKEN`, Q-Link can reuse the same bot.
-
-Important: do not run QAgent and Q-Link with the same Telegram bot at the same time. Telegram long polling will send updates to only one of them.
+Only run one long-polling Telegram bridge per bot token at a time.
 
 ## Tray App
 
@@ -41,7 +52,7 @@ The tray menu provides:
 - Open README
 - Exit
 
-The service runner is still available directly:
+The service runner is also available directly:
 
 ```powershell
 .\qlink.bat start
@@ -50,25 +61,23 @@ The service runner is still available directly:
 .\qlink.bat restart
 ```
 
-## Commands
+## Telegram Commands
 
-- Free text: paste the message into Codex Desktop.
-- Voice message: transcribe locally with Whisper, then paste the text.
+- Free text: submit the message to Codex Desktop.
+- Voice message: transcribe locally, then submit the text.
 - `/qlink <prompt>`: explicit prompt command.
 - `/status`: show bridge status.
 - `/help`: show help.
 
-## Desktop Injection
+## Desktop Automation
 
 Q-Link uses the Windows clipboard and `SendKeys`:
 
 1. Find a Codex Desktop window.
 2. Bring it to the foreground.
-3. Optionally click near the bottom prompt area.
+3. Optionally click near the prompt input.
 4. Paste the prompt.
-5. Press `Enter`.
-
-The default target is a window with process name `Codex` and title matching `Codex`.
+5. Press the configured submit shortcut.
 
 Useful settings:
 
@@ -84,28 +93,25 @@ QLINK_SUBMIT_KEYS={ENTER}
 QLINK_AUTO_SUBMIT=1
 ```
 
-`bottom-offset` is more stable when the Codex window is resized because it clicks a fixed number of pixels above the bottom of the window. `QLINK_CLICK_Y_RATIO` is kept as a fallback if `QLINK_CLICK_Y_MODE=ratio`.
+`bottom-offset` clicks a fixed number of pixels above the bottom of the window, which is usually more stable across window sizes. `QLINK_CLICK_Y_RATIO` is available when `QLINK_CLICK_Y_MODE=ratio`.
 
-If Codex Desktop needs another submit shortcut, set `QLINK_SUBMIT_KEYS`, for example `^{ENTER}` for Ctrl+Enter.
 Set `QLINK_AUTO_SUBMIT=0` while calibrating the click position so Q-Link pastes without pressing Enter.
 
-## QDex Audio
+## QDex Audio Relay
 
-If QDex is running, Q-Link can relay the spoken answer back to Telegram.
-
-The flow is:
+If QDex is running and local broadcasts are enabled, Q-Link can relay generated speech audio back to Telegram.
 
 ```text
-Telegram -> Q-Link -> Codex Desktop -> QDex reads Codex output -> QDex broadcast audio -> Q-Link sends audio to Telegram
+Codex Desktop response -> QDex speech -> QDex broadcast -> Q-Link Telegram audio
 ```
 
-Q-Link does not send text to QDex. It only watches QDex's normal local broadcast file:
+Q-Link watches the local QDex broadcast file:
 
 ```text
 %USERPROFILE%\.qdex\broadcast.jsonl
 ```
 
-When a prompt came from Telegram, Q-Link waits for the next QDex `codex-log` audio broadcast and sends that audio to the same Telegram chat.
+When a prompt came from Telegram, Q-Link waits for the next QDex audio broadcast and sends that audio to the same Telegram chat.
 
 Useful settings:
 
@@ -116,22 +122,29 @@ QLINK_QDEX_BROADCAST_POLL_MS=500
 QLINK_QDEX_RELAY_TIMEOUT_MS=900000
 ```
 
-## Voice
+## Voice Input
 
-The transcription path is reused from `AGENT_CODEX`:
+Voice input uses local command-line tools:
 
 ```text
-Telegram audio -> ffmpeg -> whisper-cli.exe -> text -> Codex Desktop
+Telegram audio -> ffmpeg -> whisper-cli -> text -> Codex Desktop
 ```
 
-Q-Link reads `WHISPER_PATH`, `WHISPER_MODEL`, `WHISPER_LANGUAGE`, `WHISPER_THREADS`, `WHISPER_BEAM_SIZE`, `WHISPER_BEST_OF`, `WHISPER_NO_FALLBACK`, and `FFMPEG_PATH`.
+Configure the paths and transcription settings in `.env`:
+
+```env
+WHISPER_PATH=
+WHISPER_MODEL=
+WHISPER_LANGUAGE=auto
+FFMPEG_PATH=
+```
 
 ## Limits
 
 - Codex Desktop must be open and unlocked.
-- This is UI automation, so focus matters.
-- The clipboard is temporarily replaced with the prompt. Text clipboard content is restored by default.
-- It does not call `codex app-server` and does not create or resume app-server threads.
+- UI automation can be affected by focus changes, window layout changes, or desktop lock state.
+- The text clipboard is temporarily replaced with the prompt. Text clipboard content is restored by default.
+- Voice transcription requires local ffmpeg and whisper-cli binaries.
 
 ## Publishing Notes
 
@@ -142,6 +155,6 @@ Do not publish local runtime files:
 - `logs/`
 - `node_modules/`
 
-These are already ignored by `.gitignore`.
+These are ignored by `.gitignore`.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for external tool/runtime notes.
