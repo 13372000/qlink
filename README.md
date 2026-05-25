@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/qlink.svg" width="120" alt="Q-Link logo">
+  <img src="assets/qlink.png" width="120" alt="Q-Link logo">
 </p>
 
 # Q-Link
