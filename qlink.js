@@ -772,7 +772,7 @@ function buildConfig() {
       env("QLINK_QDEX_BROADCAST_PATH", path.join(qdexBridgeDir, "broadcast.jsonl"))
     ),
     qdexBroadcastPollMs: parsePositiveInteger(env("QLINK_QDEX_BROADCAST_POLL_MS", "500"), 500),
-    qdexRelayIdleMs: parsePositiveInteger(env("QLINK_QDEX_RELAY_IDLE_MS", "120000"), 120000),
+    qdexRelayIdleMs: parsePositiveInteger(env("QLINK_QDEX_RELAY_IDLE_MS", "30000"), 30000),
     qdexRelayTimeoutMs: parsePositiveInteger(env("QLINK_QDEX_RELAY_TIMEOUT_MS", "900000"), 900000),
     qdexAudioCaption: env("QLINK_QDEX_AUDIO_CAPTION", ""),
     dataDir
