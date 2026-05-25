@@ -19,7 +19,25 @@ It is designed for local desktop use. Codex Desktop must be open and accessible 
 - Codex Desktop foreground/focus handling
 - Clipboard paste and configurable submit shortcut
 - Optional Windows tray launcher
-- Optional QDex audio relay back to Telegram
+- Optional [QDex](https://github.com/13372000/qdex) audio relay back to Telegram
+
+## How It Works
+
+Q-Link receives Telegram messages, optionally transcribes voice messages with local speech-to-text, then submits the resulting text into Codex Desktop through Windows desktop automation.
+
+The submission flow is:
+
+```text
+Telegram message -> Q-Link -> focus Codex Desktop -> paste prompt -> submit shortcut
+```
+
+This is a local automation bridge, not a direct Codex API integration. Q-Link controls the visible desktop session by focusing the Codex window, using the clipboard, and sending keyboard input.
+
+## Reliability Notes
+
+Because Q-Link automates a visible desktop application, it depends on the active Windows session. The machine must be unlocked, Codex Desktop must be open, and other applications should not take focus while a prompt is being submitted.
+
+Window size, DPI scaling, Codex UI changes, and input-area calibration can affect reliability. The click position can be adjusted in `.env`, and `QLINK_AUTO_SUBMIT=0` can be useful while calibrating.
 
 ## Quick Start
 
@@ -99,13 +117,13 @@ Set `QLINK_AUTO_SUBMIT=0` while calibrating the click position so Q-Link pastes 
 
 ## QDex Audio Relay
 
-If QDex is running and local broadcasts are enabled, Q-Link can relay generated speech audio back to Telegram.
+[QDex](https://github.com/13372000/qdex) is a separate companion app that can read Codex Desktop output aloud. When QDex local broadcasts are enabled, Q-Link can listen for those broadcast events and send the generated speech audio back to Telegram.
 
 ```text
 Codex Desktop response -> QDex speech -> QDex broadcast -> Q-Link Telegram audio
 ```
 
-Q-Link watches the local QDex broadcast file:
+This integration is optional. Q-Link itself does not generate speech and does not send prompts to QDex. It only watches the local QDex broadcast file:
 
 ```text
 %USERPROFILE%\.qdex\broadcast.jsonl
