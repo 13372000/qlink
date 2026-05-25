@@ -39,6 +39,8 @@ Because Q-Link automates a visible desktop application, it depends on the active
 
 Window size, DPI scaling, Codex UI changes, and input-area calibration can affect reliability. The click position can be adjusted in `.env`, and `QLINK_AUTO_SUBMIT=0` can be useful while calibrating.
 
+Q-Link is currently calibrated for a Codex Desktop conversation view where the prompt input is near the bottom of the window. On a new Codex start screen before a conversation has been opened, the input may be centered and require different calibration.
+
 ## Quick Start
 
 ```powershell
@@ -160,6 +162,7 @@ FFMPEG_PATH=
 ## Limits
 
 - Codex Desktop must be open and unlocked.
+- A Codex Desktop conversation should already be open. The new-conversation start screen may place the prompt input in a different position.
 - UI automation can be affected by focus changes, window layout changes, or desktop lock state.
 - The text clipboard is temporarily replaced with the prompt. Text clipboard content is restored by default.
 - Voice transcription requires local ffmpeg and whisper-cli binaries.
