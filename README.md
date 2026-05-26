@@ -37,7 +37,7 @@ This is a local automation bridge, not a direct Codex API integration. Q-Link co
 
 Because Q-Link automates a visible desktop application, it depends on the active Windows session. The machine must be unlocked, Codex Desktop must be open, and other applications should not take focus while a prompt is being submitted.
 
-Window size, DPI scaling, Codex UI changes, and input-area calibration can affect reliability. The click position can be adjusted in `.env`, and `QLINK_AUTO_SUBMIT=0` can be useful while calibrating.
+DPI scaling, Codex UI changes, and input-area calibration can affect reliability. The click position can be adjusted in `.env`, and `QLINK_AUTO_SUBMIT=0` can be useful while calibrating.
 
 Q-Link is currently calibrated for a Codex Desktop conversation view where the prompt input is near the bottom of the window. On a new Codex start screen before a conversation has been opened, the input may be centered and require different calibration.
 
