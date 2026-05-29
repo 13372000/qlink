@@ -390,6 +390,7 @@ function buildStatusText() {
     `submitKeys=${config.submitKeys}`,
     `autoSubmit=${config.autoSubmit}`,
     `qdexAudio=${config.qdexEnabled ? config.qdexBroadcastPath : "off"}`,
+    `qdexAlwaysAudio=${config.qdexAlwaysSendAudioToTelegram ? qdexAlwaysAudioChatIds().join(",") || "no-target" : "off"}`,
     `qdexRelayIdleMs=${config.qdexRelayIdleMs}`,
     `pendingQdexAudio=${pendingQdexAudioRelays.length}`,
     activeInjection ? "activeInjection=yes" : "activeInjection=no"
@@ -653,6 +654,9 @@ async function handleQdexBroadcastLine(baseUrl, line) {
 
   const pendingRelay = matchPendingQdexAudioRelay(entry);
   if (!pendingRelay) {
+    if (await relayAlwaysQdexAudio(baseUrl, audio)) {
+      rememberSentQdexAudioId(playbackId);
+    }
     return;
   }
 
@@ -662,6 +666,35 @@ async function handleQdexBroadcastLine(baseUrl, line) {
     replyToMessageId: pendingRelay.replyToMessageId || null,
     caption: config.qdexAudioCaption
   });
+}
+
+async function relayAlwaysQdexAudio(baseUrl, audio) {
+  if (!config.qdexAlwaysSendAudioToTelegram) {
+    return false;
+  }
+
+  const chatIds = qdexAlwaysAudioChatIds();
+  if (!chatIds.length) {
+    console.warn("QDex always audio relay enabled, but no target chat ids are configured.");
+    return false;
+  }
+
+  for (const chatId of chatIds) {
+    await sendTelegramAudio(baseUrl, chatId, audio, {
+      caption: config.qdexAudioCaption
+    });
+  }
+
+  console.log(`QDex always audio relay sent chats=${chatIds.join(",")}`);
+  return true;
+}
+
+function qdexAlwaysAudioChatIds() {
+  if (config.qdexAlwaysAudioChatIds.size) {
+    return [...config.qdexAlwaysAudioChatIds];
+  }
+
+  return [...config.allowedChatIds];
 }
 
 function matchPendingQdexAudioRelay(entry) {
@@ -767,6 +800,8 @@ function buildConfig() {
     restoreClipboard: parseBoolean(env("QLINK_RESTORE_CLIPBOARD", "1")),
     qdexEnabled: parseBoolean(env("QLINK_QDEX_ENABLED", "1")),
     qdexSendAudioToTelegram: parseBoolean(env("QLINK_QDEX_SEND_AUDIO_TO_TELEGRAM", "1")),
+    qdexAlwaysSendAudioToTelegram: parseBoolean(env("QLINK_QDEX_ALWAYS_SEND_AUDIO_TO_TELEGRAM", "0")),
+    qdexAlwaysAudioChatIds: parseCsvSet(env("QLINK_QDEX_ALWAYS_CHAT_IDS", "")),
     qdexBridgeDir,
     qdexBroadcastPath: path.resolve(
       env("QLINK_QDEX_BROADCAST_PATH", path.join(qdexBridgeDir, "broadcast.jsonl"))
